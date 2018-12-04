@@ -11,8 +11,13 @@
 #define N_REPS 50000
 #define NUM_SPECS 3
 
+struct timespec before;
+struct timespec after;
+
+
 void *childfunc(void *offset)
 {
+  // start running thread (after);
   return NULL;
 }
 
@@ -29,9 +34,19 @@ void * malloc_shared(size_t size){
 
 void test_threads(){
   pthread_t child;
+  int createNum;
+  // revisit lecture capture around 2:25 PM
   for (long i = 0; i < N_REPS; i++)
   {
-    pthread_create(&child, NULL, childfunc, (void *)i);
+    clock_gettime(CLOCK_REALTIME,&before);
+   // sleep(1);
+    createNum = pthread_create(&child, NULL, childfunc, (void *)i);
+    //after - spawn
+    if (createNum == 0) {
+      clock_gettime(CLOCK_REALTIME,&after);
+      long difference = (after.tv_sec * NANOSECONDS_PER_SECOND + after.tv_nsec) - (before.tv_sec * NANOSECONDS_PER_SECOND + before.tv_nsec);
+       printf("this thread took %ld nanoseconds to be spawned.\n",difference);
+    }
     pthread_join(child, NULL);
   }
 }
@@ -56,6 +71,7 @@ void test_processes(){
 
 int main(int argc, char **argv)
 {
+
   printf("spawning a lot of threads.\n");
   test_threads();
   printf("spawning a lot of processes.\n");
