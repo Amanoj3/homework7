@@ -13,23 +13,19 @@
 
 struct timespec before;
 struct timespec after;
+struct timespec afterThreadRun;
 
+struct timespec beforeFork;
+struct timespec afterFork;
+struct timespec afterProcessRun;
 
 void *childfunc(void *offset)
 {
   // start running thread (after);
-  return NULL;
-}
 
-/* malloc_shared acts like malloc in that it will allocate and return size bytes of memory,
-   but it will also ensure that this region of memory is shared with all child processes.
-   NOTE: it will NOT be guarded by any synchronization primitives, so you need to make sure only one
-   of the parent or child is accessing it at any given time. Pro-tip: you can use exit() in the child
-   and wait() in the parent in a way similar to the barriers in homework 6 to ensure only one process
-   is accessing it at any given time.
-   */
-void * malloc_shared(size_t size){
-   return mmap(NULL,size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, 0, 0);
+  clock_gettime(CLOCK_REALTIME,&afterThreadRun);
+
+  return NULL;
 }
 
 void test_threads(){
@@ -39,15 +35,16 @@ void test_threads(){
   for (long i = 0; i < N_REPS; i++)
   {
     clock_gettime(CLOCK_REALTIME,&before);
-   // sleep(1);
     createNum = pthread_create(&child, NULL, childfunc, (void *)i);
-    //after - spawn
     if (createNum == 0) {
       clock_gettime(CLOCK_REALTIME,&after);
       long difference = (after.tv_sec * NANOSECONDS_PER_SECOND + after.tv_nsec) - (before.tv_sec * NANOSECONDS_PER_SECOND + before.tv_nsec);
-       printf("this thread took %ld nanoseconds to be spawned.\n",difference);
+      printf("this thread took %ld nanoseconds to be spawned.\n",difference);
+      pthread_join(child, NULL);
+      long runDiff = (afterThreadRun.tv_sec * NANOSECONDS_PER_SECOND + afterThreadRun.tv_nsec) - (after.tv_sec * NANOSECONDS_PER_SECOND + after.tv_nsec);
+      printf("this thread took %ld nanoseconds to start running.\n",runDiff);
     }
-    pthread_join(child, NULL);
+    //pthread_join(child, NULL);
   }
 }
 
@@ -55,12 +52,17 @@ void test_processes(){
   int wpid, status, retval;
 
   for (int i = 0; i < N_REPS; i++) {
+    clock_gettime(CLOCK_REALTIME,&beforeFork);
     retval = fork();
-    if(retval == 0){
-      exit(0);
+    if(retval == 0){ // in this if statement, you are in the child
     }
+
     else{
-      // do nothing
+
+      clock_gettime(CLOCK_REALTIME,&afterFork);
+      long forkDiff = (afterFork.tv_sec * NANOSECONDS_PER_SECOND + afterFork.tv_nsec) - (beforeFork.tv_sec * NANOSECONDS_PER_SECOND + beforeFork.tv_nsec);
+      printf("This process took %ld nanoseconds to be spawned. \n",forkDiff);
+
     }
     wpid = wait(&status);
   }
