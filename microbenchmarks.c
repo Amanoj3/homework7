@@ -13,56 +13,64 @@
 
 struct timespec before;
 struct timespec after;
-struct timespec afterThreadRun;
+struct timespec after2;
 
 struct timespec beforeFork;
 struct timespec afterFork;
-struct timespec afterProcessRun;
+struct timespec afterFork2;
 
 void *childfunc(void *offset)
 {
-  // start running thread (after);
-
-  clock_gettime(CLOCK_REALTIME,&afterThreadRun);
-
+  clock_gettime(CLOCK_REALTIME,&after2); // after thread start running
   return NULL;
 }
 
+void * malloc_shared(size_t size){
+   return mmap(NULL,size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, 0, 0);
+}
+
 void test_threads(){
-  pthread_t child;
   int createNum;
-  // revisit lecture capture around 2:25 PM
+  pthread_t child;
+  StatObject ctr = NewStatObject();
+  StatObject ctr2 = NewStatObject();
   for (long i = 0; i < N_REPS; i++)
   {
     clock_gettime(CLOCK_REALTIME,&before);
     createNum = pthread_create(&child, NULL, childfunc, (void *)i);
+    clock_gettime(CLOCK_REALTIME,&after);  // Discussion question in lecture says A is correct, so I measure it after ASAP
+    long difference = (after.tv_sec * NANOSECONDS_PER_SECOND + after.tv_nsec) -     (before.tv_sec * NANOSECONDS_PER_SECOND + before.tv_nsec);
+    pthread_join(child, NULL);
+    long difference2 = (after2.tv_sec * NANOSECONDS_PER_SECOND + after2.tv_nsec) -     (after.tv_sec * NANOSECONDS_PER_SECOND + after.tv_nsec);
     if (createNum == 0) {
-      clock_gettime(CLOCK_REALTIME,&after);
-      long difference = (after.tv_sec * NANOSECONDS_PER_SECOND + after.tv_nsec) - (before.tv_sec * NANOSECONDS_PER_SECOND + before.tv_nsec);
+      //add to ctr for stats;
       printf("this thread took %ld nanoseconds to be spawned.\n",difference);
-      pthread_join(child, NULL);
-      long runDiff = (afterThreadRun.tv_sec * NANOSECONDS_PER_SECOND + afterThreadRun.tv_nsec) - (after.tv_sec * NANOSECONDS_PER_SECOND + after.tv_nsec);
-      printf("this thread took %ld nanoseconds to start running.\n",runDiff);
+      printf("this thread took %ld nanoseconds to run.\n",difference2);
+      stat_object_add(ctr,difference);
+      stat_object_add(ctr2,difference2);
     }
-    //pthread_join(child, NULL);
   }
 }
 
 void test_processes(){
   int wpid, status, retval;
+  StatObject ctr3 = NewStatObject();
+  StatObject ctr4 = NewStatObject();
 
   for (int i = 0; i < N_REPS; i++) {
     clock_gettime(CLOCK_REALTIME,&beforeFork);
-    retval = fork();
-    if(retval == 0){ // in this if statement, you are in the child
+    retval = fork(); // same logic as thread: must timestamp immediately as opposed
+    // to timestamping in an if-statement
+    clock_gettime(CLOCK_REALTIME,&afterFork);
+    long forkDifference = (afterFork.tv_sec * NANOSECONDS_PER_SECOND + afterFork.tv_nsec) -     (beforeFork.tv_sec * NANOSECONDS_PER_SECOND + beforeFork.tv_nsec);
+    if(retval == 0){
+      printf("This process took %ld nanoseconds to be spawned!\n",forkDifference);
+      stat_object_add(ctr3,forkDifference);
+
+      exit(0);
     }
-
     else{
-
-      clock_gettime(CLOCK_REALTIME,&afterFork);
-      long forkDiff = (afterFork.tv_sec * NANOSECONDS_PER_SECOND + afterFork.tv_nsec) - (beforeFork.tv_sec * NANOSECONDS_PER_SECOND + beforeFork.tv_nsec);
-      printf("This process took %ld nanoseconds to be spawned. \n",forkDiff);
-
+      // do nothing
     }
     wpid = wait(&status);
   }
@@ -73,10 +81,10 @@ void test_processes(){
 
 int main(int argc, char **argv)
 {
-
   printf("spawning a lot of threads.\n");
   test_threads();
   printf("spawning a lot of processes.\n");
   test_processes();
   return EXIT_SUCCESS;
 }
+
